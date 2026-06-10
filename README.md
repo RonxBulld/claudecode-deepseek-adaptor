@@ -67,43 +67,42 @@ is the next fixup's input.
 
 | | |
 |---|---|
-| **Problem** | Claude Code (Opus 4.6+) sends `thinking.type: "adaptive"`. DeepSeek only understands `"enabled"` and `"disabled"`. |
+| **Problem** | Claude Code (Opus 4.6+) sends `thinking.type: "adaptive"`. DeepSeek only documents `"enabled"` and `"disabled"`. |
 | **Fix** | Rewrite `"adaptive"` to `"enabled"`. Thinking depth is still controlled by `output_config.effort`. |
 
 ### 2. Strip `thinking.display`
 
 | | |
 |---|---|
-| **Problem** | Anthropic Opus 4.7+ supports `thinking.display` (`"summarized"`, `"omitted"`). DeepSeek does not. |
+| **Problem** | Anthropic Opus 4.7+ supports `thinking.display` (`"summarized"`, `"omitted"`). Not present in DeepSeek docs. |
 | **Fix** | Remove `display` from the `thinking` object. If `thinking` becomes empty after stripping, remove it entirely. |
 
-### 3. Strip `thinking.budget_tokens`
+### 3. Resolve `thinking: {type: "disabled"}` conflicts
 
 | | |
 |---|---|
-| **Problem** | `budget_tokens` is an Anthropic-specific field for controlling thinking token allocation. DeepSeek ignores it but may reject the request. |
-| **Fix** | Remove `budget_tokens`. DeepSeek uses `output_config.effort` for depth control instead. Empty thinking dict → removed. |
+| **Problem** | DeepSeek rejects `thinking.type=disabled` in two scenarios: (a) when `reasoning_effort` is also set, (b) on models that don't support the `thinking` parameter at all — with a misleading 400 error mentioning `reasoning_effort` even when absent. |
+| **Fix** | **Model-agnostic**: strip `thinking` entirely when its type is `"disabled"`. Also strip `reasoning_effort`. Handles edge cases: empty dict `{}`, non-standard values like `false` or `"disabled"` (string). |
 
-### 4. Strip sampling params when thinking is active
-
-| | |
-|---|---|
-| **Problem** | `temperature`, `top_p`, `top_k` are incompatible with thinking mode. Anthropic Opus 4.7+ rejects them with 400. |
-| **Fix** | Remove these parameters when `thinking.type` is NOT `"disabled"` (i.e., thinking is active). |
-
-### 5. Resolve `thinking: {type: "disabled"}` conflicts
-
-| | |
-|---|---|
-| **Problem** | DeepSeek rejects `thinking.type=disabled` in two scenarios: (a) when `reasoning_effort` is also set (explicit conflict), (b) on models that don't support the `thinking` parameter at all — with a misleading 400 error mentioning `reasoning_effort` even when it's absent. |
-| **Fix** | **Model-agnostic**: strip `thinking` entirely when its type is `"disabled"`. This is semantically equivalent to not sending thinking at all. Also strip `reasoning_effort` so it doesn't implicitly re-enable thinking. Also handles edge cases: empty dict `{}`, non-standard values like `false` or `"disabled"` (string). |
-
-### 6. Simplify `output_config`
+### 4. Simplify `output_config`
 
 | | |
 |---|---|
 | **Problem** | Claude Code sends Anthropic-specific `output_config` fields (`task_budget`, `format`). DeepSeek only supports `effort`. |
 | **Fix** | Keep only `effort` inside `output_config`. If `output_config` becomes empty, remove it entirely. |
+
+## Intentionally Passed Through
+
+Per the [DeepSeek Anthropic API docs](https://api-docs.deepseek.com/zh-cn/guides/anthropic_api), these parameters are either fully supported or
+silently ignored — we pass them through unchanged rather than stripping,
+so that future DeepSeek support isn't blocked by the proxy:
+
+| Parameter | Docs say | Behavior |
+|---|---|---|
+| `thinking.budget_tokens` | "is ignored" | Passed through, no error |
+| `temperature` | "Fully Supported" (0.0–2.0) | Passed through |
+| `top_p` | "Fully Supported" | Passed through |
+| `top_k` | "Ignored" | Passed through, no error |
 
 ## What Passes Through Unchanged
 
@@ -119,8 +118,8 @@ is the next fixup's input.
 ```
 ccadaptor/
 ├── server.py       # HTTP proxy (ThreadingMixIn, stdlib only)
-├── fixups.py       # 6 fixup functions + apply_all chain
-├── test_fixups.py  # 43 unit tests
+├── fixups.py       # 4-step fixup chain + utility functions
+├── test_fixups.py  # unit tests
 └── README.md
 ```
 

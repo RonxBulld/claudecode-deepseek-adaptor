@@ -293,8 +293,8 @@ class TestFixOutputConfig(unittest.TestCase):
 class TestCombinedFixups(unittest.TestCase):
     """End-to-end tests exercising apply_all with multiple fixups."""
 
-    def test_adaptive_display_budget_output_config(self):
-        """Full Claude Code Opus 4.8 request with all Anthropic extras."""
+    def test_adaptive_display_output_config(self):
+        """Thinking adaptive + display → enabled, display stripped; budget_tokens/sampling kept."""
         body = {
             "model": "deepseek-v4-pro",
             "max_tokens": 16000,
@@ -315,20 +315,21 @@ class TestCombinedFixups(unittest.TestCase):
         result = apply_fixups(body)
         # adaptive → enabled
         self.assertEqual(result["thinking"]["type"], "enabled")
-        # display stripped
+        # display stripped (not in DeepSeek docs)
         self.assertNotIn("display", result["thinking"])
-        # budget_tokens stripped
-        self.assertNotIn("budget_tokens", result["thinking"])
-        # sampling params stripped (thinking is active)
-        self.assertNotIn("temperature", result)
-        self.assertNotIn("top_p", result)
+        # budget_tokens KEPT (DeepSeek docs: "ignored", not rejected)
+        self.assertIn("budget_tokens", result["thinking"])
+        self.assertEqual(result["thinking"]["budget_tokens"], 8000)
+        # sampling params KEPT (DeepSeek docs: fully supported)
+        self.assertIn("temperature", result)
+        self.assertIn("top_p", result)
         # output_config: only effort remains
         self.assertEqual(result["output_config"], {"effort": "xhigh"})
         # messages untouched
         self.assertIn("messages", result)
 
-    def test_disabled_with_reasoning_effort_and_budget(self):
-        """Sub-agent pattern: disabled thinking + reasoning_effort + budget_tokens."""
+    def test_disabled_with_reasoning_effort(self):
+        """Disabled thinking → thinking dict removed entirely (including budget_tokens)."""
         body = {
             "thinking": {"type": "disabled", "budget_tokens": 4000},
             "reasoning_effort": "max",
@@ -339,7 +340,7 @@ class TestCombinedFixups(unittest.TestCase):
         self.assertNotIn("reasoning_effort", result)
 
     def test_adaptive_with_sampling_and_output_config(self):
-        """Enabled thinking with sampling params to strip."""
+        """Enabled thinking: sampling params kept (DeepSeek fully supports them)."""
         body = {
             "thinking": {"type": "adaptive"},
             "temperature": 1.0,
@@ -351,9 +352,20 @@ class TestCombinedFixups(unittest.TestCase):
         }
         result = apply_fixups(body)
         self.assertEqual(result["thinking"]["type"], "enabled")
-        self.assertNotIn("temperature", result)
-        self.assertNotIn("top_k", result)
+        self.assertIn("temperature", result)  # kept per DeepSeek docs
+        self.assertIn("top_k", result)        # kept — DeepSeek ignores it
         self.assertEqual(result["output_config"], {"effort": "max"})
+
+    def test_budget_tokens_passthrough_when_thinking_enabled(self):
+        """budget_tokens passes through when thinking is enabled."""
+        body = {
+            "thinking": {"type": "enabled", "budget_tokens": 4000},
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        result = apply_fixups(body)
+        self.assertIn("thinking", result)
+        self.assertIn("budget_tokens", result["thinking"])
+        self.assertEqual(result["thinking"]["budget_tokens"], 4000)
 
     def test_idempotent_on_clean_body(self):
         """A body with no Anthropic extras passes through unchanged."""
@@ -375,7 +387,7 @@ class TestCombinedFixups(unittest.TestCase):
         result = apply_fixups(body)
         self.assertNotIn("thinking", result)
         self.assertNotIn("reasoning_effort", result)
-        self.assertIn("temperature", result)  # sampling params kept for disabled
+        self.assertIn("temperature", result)  # sampling params kept
 
     def test_hook_evaluator_pattern(self):
         """Hook evaluator: flash model + disabled thinking → both stripped."""

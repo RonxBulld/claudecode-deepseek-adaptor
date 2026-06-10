@@ -147,10 +147,12 @@ def main():
     print(f"   Fixups:")
     print(f"     1. thinking: adaptive → enabled")
     print(f"     2. thinking: strip display field")
-    print(f"     3. thinking: strip budget_tokens")
-    print(f"     4. strip temperature/top_p/top_k when thinking active")
-    print(f"     5. resolve thinking=disabled conflicts (model-agnostic)")
-    print(f"     6. output_config: keep only effort")
+    print(f"     3. resolve thinking=disabled conflicts (model-agnostic)")
+    print(f"     4. output_config: keep only effort")
+    print(f"   Pass-through (per DeepSeek docs):")
+    print(f"     - budget_tokens (ignored)")
+    print(f"     - temperature, top_p (fully supported)")
+    print(f"     - top_k (ignored)")
     print(f"   Debug: CCADAPTOR_DEBUG=1 for request logging")
 
     try:

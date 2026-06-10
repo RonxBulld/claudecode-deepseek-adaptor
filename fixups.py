@@ -175,15 +175,18 @@ def apply_all(body: dict[str, Any]) -> dict[str, Any]:
 
     1. Convert ``"adaptive"`` → ``"enabled"``
     2. Strip unsupported ``display`` field
-    3. Strip Anthropic-specific ``budget_tokens``
-    4. Strip ``temperature/top_p/top_k`` when thinking is active
-    5. Resolve ``thinking=disabled`` conflicts (model-agnostic)
-    6. Keep only ``effort`` in ``output_config``
+    3. Resolve ``thinking=disabled`` conflicts (model-agnostic)
+    4. Keep only ``effort`` in ``output_config``
+
+    Note — intentionally NOT stripped (per DeepSeek docs these are silently
+    ignored or fully supported, so we pass them through to avoid breaking
+    functionality if DeepSeek later adds support):
+    - ``thinking.budget_tokens`` (docs: "is ignored")
+    - ``temperature``, ``top_p`` (docs: "Fully Supported")
+    - ``top_k`` (docs: "Ignored")
     """
     body = fix_thinking_adaptive(body)
     body = fix_thinking_display(body)
-    body = fix_thinking_budget_tokens(body)
-    body = fix_thinking_sampling_params(body)
     body = fix_thinking_disabled_remove(body)
     body = fix_output_config(body)
     return body
