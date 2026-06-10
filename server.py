@@ -1,5 +1,5 @@
 """
-ccadaptor — Fix Anthropic ↔ DeepSeek API incompatibilities.
+claudecode-deepseek-adaptor — Fix Anthropic ↔ DeepSeek API incompatibilities.
 
 A transparent proxy that normalises Claude Code's Anthropic-format requests
 for DeepSeek's /anthropic endpoint.  Fixups include:
@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 
 from fixups import apply_all as apply_fixups
 
-DEBUG = os.environ.get("CCADAPTOR_DEBUG", "0") == "1"
+DEBUG = os.environ.get("CLAUDE_DS_ADAPTOR_DEBUG", "0") == "1"
 
 UPSTREAM_URL = os.environ.get(
     "UPSTREAM_URL", "https://api.deepseek.com/anthropic"
@@ -140,7 +140,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def main():
     server = ThreadingHTTPServer((PROXY_HOST, PROXY_PORT), ProxyHandler)
 
-    print(f"\n🚀 ccadaptor on http://{PROXY_HOST}:{PROXY_PORT}")
+    print(f"\n🚀 claudecode-deepseek-adaptor on http://{PROXY_HOST}:{PROXY_PORT}")
     print(f"   Upstream: {UPSTREAM_URL}")
     print(f"   Fixups:")
     print(f"     1. thinking: adaptive → enabled")
@@ -151,7 +151,7 @@ def main():
     print(f"     - budget_tokens (ignored)")
     print(f"     - temperature, top_p (fully supported)")
     print(f"     - top_k (ignored)")
-    print(f"   Debug: CCADAPTOR_DEBUG=1 for request logging")
+    print(f"   Debug: CLAUDE_DS_ADAPTOR_DEBUG=1 for request logging")
 
     try:
         server.serve_forever()

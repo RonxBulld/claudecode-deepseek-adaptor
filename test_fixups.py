@@ -1,5 +1,5 @@
 """
-Unit tests for ccadaptor fixups.
+Unit tests for claudecode-deepseek-adaptor fixups.
 Uses only Python standard library (unittest).
 """
 

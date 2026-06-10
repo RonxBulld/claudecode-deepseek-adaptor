@@ -1,4 +1,4 @@
-# ccadaptor — Claude Code ↔ DeepSeek API Adapter
+# claudecode-deepseek-adaptor — Claude Code ↔ DeepSeek API Adapter
 
 A transparent HTTP proxy that fixes incompatibilities between Claude Code's
 Anthropic-format requests and DeepSeek's `/anthropic` endpoint.
@@ -8,7 +8,7 @@ format** — no full translation layer is needed. The proxy only strips or
 rewrites the handful of parameters that DeepSeek doesn't support.
 
 ```
-Claude Code ── Anthropic API ──► ccadaptor ──► api.deepseek.com/anthropic
+Claude Code ── Anthropic API ──► claudecode-deepseek-adaptor ──► api.deepseek.com/anthropic
              ◄── Anthropic API ──            ◄──
 ```
 
@@ -48,11 +48,11 @@ normally. All API calls route through the proxy automatically.
 | `UPSTREAM_URL` | `https://api.deepseek.com/anthropic` | DeepSeek endpoint |
 | `PROXY_PORT` | `8089` | Proxy listen port |
 | `PROXY_HOST` | `127.0.0.1` | Proxy listen host |
-| `CCADAPTOR_DEBUG` | `0` | Set to `1` for request logging |
+| `CLAUDE_DS_ADAPTOR_DEBUG` | `0` | Set to `1` for request logging |
 
 Debug mode:
 ```bash
-CCADAPTOR_DEBUG=1 python3 server.py
+CLAUDE_DS_ADAPTOR_DEBUG=1 python3 server.py
 ```
 Logs go to stderr. Each request shows model, thinking, reasoning_effort, and
 whether fixups were applied.
@@ -116,7 +116,7 @@ so that future DeepSeek support isn't blocked by the proxy:
 ## Architecture
 
 ```
-ccadaptor/
+claudecode-deepseek-adaptor/
 ├── server.py       # HTTP proxy (ThreadingMixIn, stdlib only)
 ├── fixups.py       # 4-step fixup chain + utility functions
 ├── test_fixups.py  # unit tests
