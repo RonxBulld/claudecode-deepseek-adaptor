@@ -24,12 +24,15 @@ Then configure Claude Code:
 
 import json
 import os
+import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from fixups import apply_all as apply_fixups
+
+DEBUG = os.environ.get("CCADAPTOR_DEBUG", "0") == "1"
 
 UPSTREAM_URL = os.environ.get(
     "UPSTREAM_URL", "https://api.deepseek.com/anthropic"
@@ -68,7 +71,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if body_bytes:
             try:
                 body = json.loads(body_bytes)
-                body = apply_fixups(body)
+                if DEBUG:
+                    print(f"\n[ccadaptor] REQUEST {self.command} {self.path}", file=sys.stderr)
+                    print(f"  thinking={body.get('thinking')!r}", file=sys.stderr)
+                    print(f"  reasoning_effort={body.get('reasoning_effort')!r}", file=sys.stderr)
+                    print(f"  model={body.get('model')!r}", file=sys.stderr)
+                fixed = apply_fixups(body)
+                if DEBUG and fixed is not body:
+                    print(f"  → fixups applied", file=sys.stderr)
+                    print(f"  → thinking={fixed.get('thinking')!r}", file=sys.stderr)
+                    print(f"  → reasoning_effort={fixed.get('reasoning_effort')!r}", file=sys.stderr)
+                body = fixed
                 body_bytes = json.dumps(body).encode("utf-8")
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -133,10 +146,10 @@ def main():
     print(f"     2. thinking: strip display field")
     print(f"     3. thinking: strip budget_tokens")
     print(f"     4. strip temperature/top_p/top_k when thinking active")
-    print(f"     5. strip reasoning_effort when thinking=disabled")
-    print(f"     6. output_config: keep only effort")
-    print(f"   API Key: passthrough from Claude Code")
-    print(f"   Dependencies: stdlib only (no pip install needed)\n")
+    print(f"     5. strip reasoning_effort when thinking=disabled/empty")
+    print(f"     6. strip empty thinking dicts")
+    print(f"     7. output_config: keep only effort")
+    print(f"   Debug: CCADAPTOR_DEBUG=1 for request logging")
 
     try:
         server.serve_forever()

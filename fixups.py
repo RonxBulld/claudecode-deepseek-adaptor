@@ -100,14 +100,57 @@ def fix_thinking_reasoning_effort_conflict(body: dict[str, Any]) -> dict[str, An
 
     Error: "400 thinking options type cannot be disabled when reasoning_effort is set"
 
-    Fix: When thinking is explicitly disabled, remove reasoning_effort entirely.
-    The user's intent is to disable thinking mode, so reasoning_effort is irrelevant.
+    Fix: When thinking is effectively disabled, remove reasoning_effort entirely.
+    This covers:
+    - ``thinking: {"type": "disabled"}`` (explicit)
+    - ``thinking: {}`` (empty dict — no thinking features enabled)
+    - Non-dict, non-None values (e.g. boolean False, string — non-standard but
+      effectively disabled)
+    - ``thinking`` absent (was removed mid-chain by earlier fixups → reasoning_effort
+      alone is valid; this case is handled correctly by the logic below since
+      ``body.get("thinking")`` returns None and we only strip when thinking is
+      effectively *disabled*, not when it's absent)
+
+    Must run BEFORE ``fix_thinking_empty`` so empty dicts are still visible.
     """
     thinking = body.get("thinking")
-    if thinking and isinstance(thinking, dict) and thinking.get("type") == "disabled":
-        if "reasoning_effort" in body:
-            body = body.copy()
-            del body["reasoning_effort"]
+
+    # Is thinking effectively disabled?
+    thinking_is_disabled = False
+
+    if isinstance(thinking, dict):
+        # Explicitly disabled: {"type": "disabled"}
+        if thinking.get("type") == "disabled":
+            thinking_is_disabled = True
+        # Empty dict {} — no thinking features enabled, effectively disabled
+        elif not thinking:
+            thinking_is_disabled = True
+    elif thinking is not None:
+        # Non-dict, non-None value (e.g. bool False, string) — treat as
+        # effectively disabled since it doesn't enable any thinking features.
+        thinking_is_disabled = True
+
+    if thinking_is_disabled and "reasoning_effort" in body:
+        body = body.copy()
+        del body["reasoning_effort"]
+
+    return body
+
+
+def fix_thinking_empty(body: dict[str, Any]) -> dict[str, Any]:
+    """
+    Remove an empty ``thinking`` dict ``{}`` from the body.
+
+    Empty thinking dicts can slip through when the original request has
+    ``thinking: {}`` (all earlier fixups already handle the case where a
+    dict *becomes* empty after stripping, but a dict that starts empty
+    passes through untouched).  An empty thinking dict is effectively
+    "disabled" and can trigger the disabled+reasoning_effort conflict.
+    """
+    thinking = body.get("thinking")
+    if isinstance(thinking, dict) and not thinking:
+        body = body.copy()
+        del body["thinking"]
     return body
 
 
@@ -147,13 +190,15 @@ def apply_all(body: dict[str, Any]) -> dict[str, Any]:
     2. Strip unsupported ``display`` field
     3. Strip Anthropic-specific ``budget_tokens``
     4. Strip ``temperature/top_p/top_k`` when thinking is active
-    5. Resolve ``disabled`` + ``reasoning_effort`` conflict
-    6. Keep only ``effort`` in ``output_config``
+    5. Remove empty ``thinking`` dicts (effectively disabled)
+    6. Resolve ``disabled`` + ``reasoning_effort`` conflict
+    7. Keep only ``effort`` in ``output_config``
     """
     body = fix_thinking_adaptive(body)
     body = fix_thinking_display(body)
     body = fix_thinking_budget_tokens(body)
     body = fix_thinking_sampling_params(body)
-    body = fix_thinking_reasoning_effort_conflict(body)
+    body = fix_thinking_reasoning_effort_conflict(body)  # must be BEFORE fix_thinking_empty
+    body = fix_thinking_empty(body)
     body = fix_output_config(body)
     return body
