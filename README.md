@@ -1,5 +1,7 @@
 # claudecode-deepseek-adaptor — Claude Code ↔ DeepSeek API Adapter
 
+[中文文档](README.zh.md)
+
 A transparent HTTP proxy that fixes incompatibilities between Claude Code's
 Anthropic-format requests and DeepSeek's `/anthropic` endpoint.
 
