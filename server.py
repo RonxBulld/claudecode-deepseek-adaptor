@@ -4,12 +4,10 @@ ccadaptor — Fix Anthropic ↔ DeepSeek API incompatibilities.
 A transparent proxy that normalises Claude Code's Anthropic-format requests
 for DeepSeek's /anthropic endpoint.  Fixups include:
 
-  1. thinking.type: "adaptive" → "enabled"
+  1. thinking: adaptive → enabled
   2. thinking: strip display field
-  3. thinking: strip budget_tokens
-  4. strip temperature/top_p/top_k when thinking is active
-  5. strip reasoning_effort when thinking is disabled
-  6. output_config: keep only effort
+  3. resolve thinking=disabled conflicts (model-agnostic)
+  4. output_config: keep only effort
 
 Everything else — API key, headers, streaming responses — is passed through.
 
