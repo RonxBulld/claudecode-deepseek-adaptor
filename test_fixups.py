@@ -11,8 +11,7 @@ from fixups import (
     fix_thinking_adaptive,
     fix_thinking_budget_tokens,
     fix_thinking_display,
-    fix_thinking_empty,
-    fix_thinking_reasoning_effort_conflict,
+    fix_thinking_disabled_remove,
     fix_thinking_sampling_params,
 )
 
@@ -149,113 +148,88 @@ class TestFixThinkingSamplingParams(unittest.TestCase):
         self.assertNotIn("temperature", result)
 
 
-class TestFixThinkingEmpty(unittest.TestCase):
-    """fix_thinking_empty — removes empty thinking dicts."""
+class TestFixThinkingDisabledRemove(unittest.TestCase):
+    """fix_thinking_disabled_remove — model-agnostic disabled-thinking cleanup."""
 
-    def test_removes_empty_thinking_dict(self):
-        body = {"thinking": {}, "reasoning_effort": "max"}
-        result = fix_thinking_empty(body)
+    # ── Explicit type=disabled ────────────────────────────────────────
+
+    def test_strips_thinking_when_explicitly_disabled(self):
+        body = {"thinking": {"type": "disabled"}}
+        result = fix_thinking_disabled_remove(body)
         self.assertNotIn("thinking", result)
 
-    def test_keeps_non_empty_thinking(self):
-        body = {"thinking": {"type": "enabled"}}
-        result = fix_thinking_empty(body)
-        self.assertIn("thinking", result)
-        self.assertEqual(result["thinking"], {"type": "enabled"})
-        self.assertIs(result, body)
-
-    def test_keeps_disabled_thinking(self):
-        body = {"thinking": {"type": "disabled"}}
-        result = fix_thinking_empty(body)
-        self.assertIn("thinking", result)
-        self.assertIs(result, body)
-
-    def test_no_thinking_unchanged(self):
-        body = {"model": "x"}
-        result = fix_thinking_empty(body)
-        self.assertIs(result, body)
-
-    def test_none_thinking_unchanged(self):
-        """thinking: null in JSON becomes None in Python."""
-        body = {"thinking": None, "model": "x"}
-        result = fix_thinking_empty(body)
-        self.assertIs(result, body)
-        self.assertIsNone(result["thinking"])
-
-    def test_non_dict_thinking_unchanged(self):
-        """Non-dict thinking values pass through (handled by reasoning_effort fixup)."""
-        body = {"thinking": False, "reasoning_effort": "max"}
-        result = fix_thinking_empty(body)
-        self.assertIn("thinking", result)
-        self.assertIs(result, body)
-
-
-class TestFixThinkingReasoningEffortConflict(unittest.TestCase):
-    """fix_thinking_reasoning_effort_conflict — expanded edge cases."""
-
-    def test_strips_reasoning_effort_when_thinking_disabled(self):
+    def test_strips_thinking_and_reasoning_effort_when_disabled(self):
         body = {
-            "model": "deepseek-v4-pro",
             "thinking": {"type": "disabled"},
             "reasoning_effort": "max",
         }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        result = fix_thinking_disabled_remove(body)
+        self.assertNotIn("thinking", result)
         self.assertNotIn("reasoning_effort", result)
-        self.assertEqual(result["thinking"], {"type": "disabled"})
 
-    def test_strips_reasoning_effort_when_thinking_empty_dict(self):
-        """Empty thinking dict is effectively disabled."""
+    def test_strips_thinking_disabled_no_reasoning_effort(self):
+        """Hook evaluator pattern: disabled thinking, no reasoning_effort."""
         body = {
-            "thinking": {},
-            "reasoning_effort": "max",
+            "model": "any-model",
+            "thinking": {"type": "disabled"},
+            "messages": [{"role": "user", "content": "test"}],
         }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        result = fix_thinking_disabled_remove(body)
+        self.assertNotIn("thinking", result)
+        self.assertIn("messages", result)
         self.assertNotIn("reasoning_effort", result)
+
+    # ── Empty dict ────────────────────────────────────────────────────
+
+    def test_strips_empty_thinking_dict(self):
+        body = {"thinking": {}}
+        result = fix_thinking_disabled_remove(body)
+        self.assertNotIn("thinking", result)
+
+    def test_strips_empty_thinking_dict_with_reasoning_effort(self):
+        body = {"thinking": {}, "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
+        self.assertNotIn("thinking", result)
+        self.assertNotIn("reasoning_effort", result)
+
+    # ── Non-dict values ───────────────────────────────────────────────
 
     def test_strips_reasoning_effort_when_thinking_is_boolean_false(self):
-        """thinking: false is non-standard but treat as effectively disabled."""
-        body = {
-            "thinking": False,
-            "reasoning_effort": "max",
-        }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        body = {"thinking": False, "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
         self.assertNotIn("reasoning_effort", result)
 
     def test_strips_reasoning_effort_when_thinking_is_string(self):
-        """thinking: "disabled" is non-standard but treat as effectively disabled."""
-        body = {
-            "thinking": "disabled",
-            "reasoning_effort": "max",
-        }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        body = {"thinking": "disabled", "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
         self.assertNotIn("reasoning_effort", result)
 
-    def test_keeps_reasoning_effort_when_thinking_enabled(self):
-        body = {
-            "model": "deepseek-v4-pro",
-            "thinking": {"type": "enabled"},
-            "reasoning_effort": "max",
-        }
-        result = fix_thinking_reasoning_effort_conflict(body)
+    # ── Preserve when thinking is enabled ─────────────────────────────
+
+    def test_keeps_thinking_when_enabled(self):
+        body = {"thinking": {"type": "enabled"}, "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
+        self.assertIn("thinking", result)
         self.assertIn("reasoning_effort", result)
-        self.assertEqual(result["reasoning_effort"], "max")
+        self.assertIs(result, body)
+
+    def test_keeps_thinking_when_adaptive(self):
+        body = {"thinking": {"type": "adaptive"}, "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
+        self.assertIn("thinking", result)
+        self.assertIs(result, body)
 
     def test_keeps_reasoning_effort_when_no_thinking(self):
-        body = {
-            "model": "deepseek-v4-pro",
-            "reasoning_effort": "max",
-        }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        body = {"reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
         self.assertIn("reasoning_effort", result)
+        self.assertIs(result, body)
 
     def test_keeps_reasoning_effort_when_thinking_null(self):
-        """thinking: null — absent in practice, should not strip reasoning_effort."""
-        body = {
-            "thinking": None,
-            "reasoning_effort": "max",
-        }
-        result = fix_thinking_reasoning_effort_conflict(body)
+        body = {"thinking": None, "reasoning_effort": "max"}
+        result = fix_thinking_disabled_remove(body)
         self.assertIn("reasoning_effort", result)
+        self.assertIs(result, body)
 
 
 class TestFixOutputConfig(unittest.TestCase):
@@ -360,11 +334,9 @@ class TestCombinedFixups(unittest.TestCase):
             "reasoning_effort": "max",
         }
         result = apply_fixups(body)
-        # reasoning_effort stripped (disabled conflict)
+        # Both thinking and reasoning_effort stripped
+        self.assertNotIn("thinking", result)
         self.assertNotIn("reasoning_effort", result)
-        # budget_tokens stripped
-        self.assertNotIn("budget_tokens", result.get("thinking", {}))
-        self.assertEqual(result["thinking"], {"type": "disabled"})
 
     def test_adaptive_with_sampling_and_output_config(self):
         """Enabled thinking with sampling params to strip."""
@@ -393,26 +365,39 @@ class TestCombinedFixups(unittest.TestCase):
         result = apply_fixups(body)
         self.assertEqual(result, body)
 
-    def test_disabled_removes_reasoning_effort_but_keeps_temperature(self):
-        """When thinking is disabled: strip reasoning_effort, keep sampling params."""
+    def test_disabled_strips_thinking_and_reasoning_effort(self):
+        """When thinking is disabled: strip both thinking and reasoning_effort."""
         body = {
             "thinking": {"type": "disabled"},
             "reasoning_effort": "max",
             "temperature": 0.3,
         }
         result = apply_fixups(body)
+        self.assertNotIn("thinking", result)
         self.assertNotIn("reasoning_effort", result)
         self.assertIn("temperature", result)  # sampling params kept for disabled
 
-    def test_empty_thinking_dict_removes_reasoning_effort(self):
-        """Empty thinking dict {} + reasoning_effort — both cleaned up."""
+    def test_hook_evaluator_pattern(self):
+        """Hook evaluator: flash model + disabled thinking → both stripped."""
+        body = {
+            "model": "deepseek-v4-flash",
+            "thinking": {"type": "disabled"},
+            "messages": [{"role": "user", "content": "done?"}],
+        }
+        result = apply_fixups(body)
+        self.assertNotIn("thinking", result)
+        self.assertNotIn("reasoning_effort", result)
+        self.assertIn("messages", result)
+
+    def test_empty_thinking_dict_cleaned_up(self):
+        """Empty thinking dict {} — removed."""
         body = {
             "thinking": {},
             "reasoning_effort": "max",
         }
         result = apply_fixups(body)
+        self.assertNotIn("thinking", result)
         self.assertNotIn("reasoning_effort", result)
-        self.assertNotIn("thinking", result)  # empty dict removed by fix_thinking_empty
 
     def test_thinking_boolean_false_removes_reasoning_effort(self):
         """Non-standard thinking: false — treated as effectively disabled."""

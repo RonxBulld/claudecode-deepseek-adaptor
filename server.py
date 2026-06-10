@@ -25,6 +25,7 @@ Then configure Claude Code:
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.error import HTTPError, URLError
@@ -72,15 +73,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
             try:
                 body = json.loads(body_bytes)
                 if DEBUG:
-                    print(f"\n[ccadaptor] REQUEST {self.command} {self.path}", file=sys.stderr)
+                    ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
+                    print(f"\n[{ts}] REQUEST {self.command} {self.path}", file=sys.stderr)
+                    print(f"  model={body.get('model')!r}", file=sys.stderr)
                     print(f"  thinking={body.get('thinking')!r}", file=sys.stderr)
                     print(f"  reasoning_effort={body.get('reasoning_effort')!r}", file=sys.stderr)
-                    print(f"  model={body.get('model')!r}", file=sys.stderr)
                 fixed = apply_fixups(body)
                 if DEBUG and fixed is not body:
-                    print(f"  → fixups applied", file=sys.stderr)
-                    print(f"  → thinking={fixed.get('thinking')!r}", file=sys.stderr)
-                    print(f"  → reasoning_effort={fixed.get('reasoning_effort')!r}", file=sys.stderr)
+                    print(f"  → fixups applied (thinking={fixed.get('thinking')!r}, reasoning_effort={fixed.get('reasoning_effort')!r})", file=sys.stderr)
                 body = fixed
                 body_bytes = json.dumps(body).encode("utf-8")
             except (json.JSONDecodeError, TypeError):
@@ -98,9 +98,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             resp = urlopen(req, timeout=300)
         except HTTPError as e:
+            err_body = e.read()
+            if DEBUG:
+                print(f"  → HTTP {e.code}: {err_body.decode('utf-8', errors='replace')[:500]}", file=sys.stderr)
             self.send_response(e.code)
             self.end_headers()
-            self.wfile.write(e.read())
+            self.wfile.write(err_body)
             return
         except URLError as e:
             self.send_response(502)
@@ -146,9 +149,8 @@ def main():
     print(f"     2. thinking: strip display field")
     print(f"     3. thinking: strip budget_tokens")
     print(f"     4. strip temperature/top_p/top_k when thinking active")
-    print(f"     5. strip reasoning_effort when thinking=disabled/empty")
-    print(f"     6. strip empty thinking dicts")
-    print(f"     7. output_config: keep only effort")
+    print(f"     5. resolve thinking=disabled conflicts (model-agnostic)")
+    print(f"     6. output_config: keep only effort")
     print(f"   Debug: CCADAPTOR_DEBUG=1 for request logging")
 
     try:
