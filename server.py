@@ -1,9 +1,17 @@
 """
-ccadaptor — Strip unsupported thinking parameters for DeepSeek.
+ccadaptor — Fix Anthropic ↔ DeepSeek API incompatibilities.
 
-A transparent proxy that removes the conflicting `reasoning_effort` parameter
-when `thinking` is disabled, and strips Anthropic-specific `budget_tokens`.
-Everything else — API key, headers, request/response body — is passed through.
+A transparent proxy that normalises Claude Code's Anthropic-format requests
+for DeepSeek's /anthropic endpoint.  Fixups include:
+
+  1. thinking.type: "adaptive" → "enabled"
+  2. thinking: strip display field
+  3. thinking: strip budget_tokens
+  4. strip temperature/top_p/top_k when thinking is active
+  5. strip reasoning_effort when thinking is disabled
+  6. output_config: keep only effort
+
+Everything else — API key, headers, streaming responses — is passed through.
 
 Zero dependencies: uses only Python standard library.
 
@@ -120,8 +128,13 @@ def main():
 
     print(f"\n🚀 ccadaptor on http://{PROXY_HOST}:{PROXY_PORT}")
     print(f"   Upstream: {UPSTREAM_URL}")
-    print(f"   Fixups: strip reasoning_effort when thinking=disabled")
-    print(f"           strip budget_tokens from thinking")
+    print(f"   Fixups:")
+    print(f"     1. thinking: adaptive → enabled")
+    print(f"     2. thinking: strip display field")
+    print(f"     3. thinking: strip budget_tokens")
+    print(f"     4. strip temperature/top_p/top_k when thinking active")
+    print(f"     5. strip reasoning_effort when thinking=disabled")
+    print(f"     6. output_config: keep only effort")
     print(f"   API Key: passthrough from Claude Code")
     print(f"   Dependencies: stdlib only (no pip install needed)\n")
 
